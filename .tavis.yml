@@ -1,0 +1,36 @@
+language: generic
+before_install:
+  - wget http://downloads.arduino.cc/arduino-cli/arduino-cli-$CLI_VERSION-linux64.tar.bz2
+  - tar xf arduino-cli-$CLI_VERSION-linux64.tar.bz2
+  - mkdir -p $HOME/bin
+  - mv arduino-cli-*-linux64 $HOME/bin/arduino-cli
+  - export PATH=$PATH:$HOME/bin
+  - arduino-cli core update-index
+  - arduino-cli config init --additional-urls https://github.com/stm32duino/BoardManagerFiles/raw/master/STM32/package_stm_index.json
+  - arduino-cli config dump
+  - arduino-cli core update-index
+  - arduino-cli core install STM32:stm32
+  - arduino-cli lib install LiquidCrystal
+  - arduino-cli lib install "Analog Buttons"
+  - arduino-cli lib install OneButton
+  - sed -i '/recipe.output.tmp_file={build.project_name}.hex/d' "$HOME/.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt"
+  - sed -i '/recipe.output.save_file={build.project_name}.{build.variant}.hex/d' "$HOME/.arduino15/packages/STM32/hardware/stm32/1.8.0/platform.txt"
+install:
+  - mkdir -p $HOME/Arduino/libraries
+  - ln -s $PWD $HOME/Arduino/libraries/.
+
+addons:
+  sonarcloud:
+    organization: "covid-response-projects"
+
+# Cache PlatformIO packages using Travis CI container-based infrastructure
+sudo: false
+cache:
+    directories:
+        - '$HOME/.sonar/cache'
+script:
+    - |
+      if [[ $TRAVIS_PULL_REQUEST_SLUG == "" || $TRAVIS_PULL_REQUEST_SLUG == "covid-response-projects/covid-respirator" ]]; then
+        build-wrapper-win-x86-64.exe --out-dir bo sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_PROD/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/respirator.cpp --output src/software/firmware/output/respirator-production &&          sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_QUALIFICATION/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/qualification.cpp --output src/software/firmware/output/respirator-qualification &&               sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_INTEGRATION_TEST/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/qualification.cpp --output src/software/firmware/output/respirator-integration-test &&       build-wrapper-win-x86-64.exe --out-dir bo sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_PROD/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/respirator.cpp --output src/software/firmware/output/respirator-production &&          sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_QUALIFICATION/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/qualification.cpp --output src/software/firmware/output/respirator-qualification &&               sed -Ei 's/#define HARDWARE_VERSION [0-9]+/#define HARDWARE_VERSION 2/' src/software/firmware/includes/config.h &&           sed -Ei 's/#define MODE .+/#define MODE MODE_INTEGRATION_TEST/' src/software/firmware/includes/config.h &&           arduino-cli compile --fqbn STM32:stm32:Nucleo_64:opt=o3std,pnum=NUCLEO_F411RE --verbose src/software/firmware/srcs/qualification.cpp --output src/software/firmware/output/respirator-integration-test
+        sonar-scanner -Dsonar.cfamily.cache.path=$HOME/.sonar/cache/cpp
+      fi
